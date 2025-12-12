@@ -99,6 +99,26 @@ spec:
       labels:
         app: parte1-ms
     spec:
+      # Init container: esperar a que Postgres esté listo antes de iniciar la app
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:15-alpine
+          command:
+            - sh
+            - -c
+            - |
+              echo "Esperando a que Postgres esté disponible..."
+              until pg_isready -h postgres-service -p 5432; do
+                echo "Postgres aún no está listo, reintentando en 2 segundos..."
+                sleep 2
+              done
+              echo "Postgres está listo!"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
       containers:
         - name: parte1-ms
           # Reemplace con su imagen (build & push antes de aplicar)
