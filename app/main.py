@@ -68,6 +68,7 @@ def startup():
     """Evento de arranque: crea la tabla `empleados` si no existe.
 
     Esto garantiza que la tabla esté disponible cuando lleguen peticiones.
+    Reintentos con timeout en caso de que Postgres no esté listo aún.
     """
     # Crear la tabla si no existe
     create_table_sql = (
@@ -80,20 +81,31 @@ def startup():
         """
     )
 
-    conn = None
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(create_table_sql)
-        conn.commit()
-        cur.close()
-    except Exception as e:
-        # Si no podemos crear la tabla, el servicio seguirá arrancando,
-        # pero las llamadas a DB fallarán con mensajes claros.
-        print("Error creando tabla empleados:", e)
-    finally:
-        if conn:
-            conn.close()
+    # Intentar conectar 5 veces con 2 segundos de espera entre intentos
+    max_retries = 5
+    for attempt in range(max_retries):
+        conn = None
+        try:
+            print(f"Intento {attempt + 1}/{max_retries} de conectar a la BD...")
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute(create_table_sql)
+            conn.commit()
+            cur.close()
+            print("✓ Tabla empleados creada/verificada exitosamente")
+            return  # Éxito, salir
+        except Exception as e:
+            # Si no podemos crear la tabla, reintentar
+            print(f"Error en intento {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                print(f"Reintentando en 2 segundos...")
+                import time
+                time.sleep(2)
+            else:
+                print("⚠ No se pudo crear la tabla después de todos los intentos, continuando...")
+        finally:
+            if conn:
+                conn.close()
 
 
 @app.get("/health")
