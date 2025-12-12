@@ -47,6 +47,8 @@ spec:
             - containerPort: 5432
           # Variables de entorno obtenidas del Secret
           env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -108,7 +110,7 @@ spec:
       containers:
         - name: parte1-ms
           # Reemplace con su imagen (build & push antes de aplicar)
-          image: andrmarce08/parte1-ms:latest
+          image: parte1-ms:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

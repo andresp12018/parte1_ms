@@ -144,15 +144,6 @@ jobs:
           echo "=== Pods después de aplicar manifiesto ==="
           oc get pods -n ${{ secrets.OPENSHIFT_NAMESPACE }}
 
-      # Paso 7: Esperar a que los pods estén listos
-      - name: Wait for deployment
-        run: |
-          echo "Esperando a que el deployment esté listo (timeout 15 minutos)..."
-          timeout 900s oc rollout status deployment/parte1-ms-deployment -n ${{ secrets.OPENSHIFT_NAMESPACE }} -w=true || echo "⚠ Timeout o error, pero continuando con diagnóstico..."
-          
-          # Esperar adicional de 5 segundos
-          sleep 5
-
       # Paso 8: Verificar estado de los pods (diagnóstico exhaustivo)
       - name: Check pod status
         if: always()
