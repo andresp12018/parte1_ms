@@ -136,6 +136,12 @@ jobs:
           echo ""
           echo "=== Eventos del namespace ==="
           oc get events -n ${{ secrets.OPENSHIFT_NAMESPACE }} --sort-by='.lastTimestamp' | tail -20
+          echo ""
+          echo "=== Logs del pod parte1-ms (últimas líneas) ==="
+          oc logs -l app=parte1-ms -n ${{ secrets.OPENSHIFT_NAMESPACE }} --tail=50 2>/dev/null || echo "Sin logs disponibles"
+          echo ""
+          echo "=== Descripción detallada del pod ==="
+          oc describe pod -l app=parte1-ms -n ${{ secrets.OPENSHIFT_NAMESPACE }} 2>/dev/null || echo "Pod no encontrado"
 
       # Paso 8: Obtener logs del servicio
       - name: Get service logs

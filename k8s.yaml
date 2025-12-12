@@ -91,6 +91,9 @@ metadata:
   name: parte1-ms-deployment
 spec:
   replicas: 1
+  strategy:
+    # Usar Recreate en lugar de RollingUpdate para evitar problemas de versiones simultáneas
+    type: Recreate
   selector:
     matchLabels:
       app: parte1-ms
@@ -141,16 +144,18 @@ spec:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 15
-            periodSeconds: 5
-            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 3
+            failureThreshold: 2
+            timeoutSeconds: 2
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 30
+            initialDelaySeconds: 20
             periodSeconds: 10
             failureThreshold: 3
+            timeoutSeconds: 2
 
 ---
 apiVersion: v1
