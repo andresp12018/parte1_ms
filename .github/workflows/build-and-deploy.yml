@@ -119,11 +119,17 @@ jobs:
       # Paso 7: Verificar estado de los pods
       - name: Check pod status
         run: |
+          echo "=== Estado de todos los pods ==="
           oc get pods -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+          echo ""
+          echo "=== Detalles del deployment ==="
+          oc describe deployment parte1-ms-deployment -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+          echo ""
+          echo "=== Detalles de los pods ==="
           oc describe pod -l app=parte1-ms -n ${{ secrets.OPENSHIFT_NAMESPACE }}
 
       # Paso 8: Obtener logs del servicio
       - name: Get service logs
         if: always()
         run: |
-          oc logs -l app=parte1-ms -n ${{ secrets.OPENSHIFT_NAMESPACE }} --tail=50
+          oc logs -l app=parte1-ms -n ${{ secrets.OPENSHIFT_NAMESPACE }} --tail=100 || echo "No logs available yet"
