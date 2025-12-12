@@ -66,6 +66,13 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      
+      # Paso 5b: Confirmar que la imagen se subió
+      - name: Confirm image push
+        run: |
+          echo "✓ Imagen construida y subida exitosamente a DockerHub"
+          echo "Tags:"
+          echo "${{ steps.meta.outputs.tags }}"
 
   # Job 2: Desplegar en OpenShift (solo si el push es en main)
   deploy-openshift:
@@ -88,20 +95,36 @@ jobs:
           sudo mv openshift-origin-client-tools-v3.11.0-0cbc58b-linux-64bit/oc /usr/local/bin/
           oc version
 
-      # Paso 3: Autenticarse en OpenShift
-      # Usa secrets OPENSHIFT_SERVER, OPENSHIFT_TOKEN, OPENSHIFT_NAMESPACE
+      # Paso 3: Verificar que la imagen existe en DockerHub
+      - name: Verify image in DockerHub
+        run: |
+          echo "Verificando que la imagen se subió correctamente a DockerHub..."
+          IMAGE_URL="docker.io/${{ secrets.DOCKER_USER }}/${{ env.IMAGE_NAME }}:latest"
+          echo "Buscando imagen: $IMAGE_URL"
+          
+          # Intentar hacer un pull de la imagen para verificar que existe
+          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_PASSWORD }}
+          if docker pull "$IMAGE_URL"; then
+            echo "✓ Imagen encontrada en DockerHub"
+          else
+            echo "✗ ERROR: La imagen NO se encuentra en DockerHub"
+            echo "Verifique que DOCKER_USER y DOCKER_PASSWORD son correctos"
+            exit 1
+          fi
+
+      # Paso 4: Autenticarse en OpenShift
       - name: Login to OpenShift
         run: |
           oc login ${{ secrets.OPENSHIFT_SERVER }} \
             --token=${{ secrets.OPENSHIFT_TOKEN }} \
             --insecure-skip-tls-verify=true
 
-      # Paso 4: Cambiar al namespace correcto
+      # Paso 5: Cambiar al namespace correcto
       - name: Switch to project namespace
         run: |
           oc project ${{ secrets.OPENSHIFT_NAMESPACE }}
 
-      # Paso 5: Aplicar el manifiesto k8s.yaml en OpenShift
+      # Paso 6: Aplicar el manifiesto k8s.yaml en OpenShift
       - name: Apply Kubernetes manifest
         run: |
           # Reemplazar la variable IMAGE_NAME en k8s.yaml antes de aplicar
@@ -109,8 +132,10 @@ jobs:
           
           # Aplicar el manifiesto
           oc apply -f k8s.yaml
+          
+          echo "Manifiesto aplicado exitosamente"
 
-      # Paso 6: Esperar a que los pods estén listos
+      # Paso 7: Esperar a que los pods estén listos
       - name: Wait for deployment
         run: |
           echo "Esperando a que el deployment esté listo (timeout 10 minutos)..."
@@ -119,7 +144,7 @@ jobs:
           # Esperar adicional de 10 segundos
           sleep 10
 
-      # Paso 7: Verificar estado de los pods
+      # Paso 8: Verificar estado de los pods
       - name: Check pod status
         run: |
           echo "=== Estado de todos los pods ==="
@@ -143,7 +168,7 @@ jobs:
           echo "=== Descripción detallada del pod ==="
           oc describe pod -l app=parte1-ms -n ${{ secrets.OPENSHIFT_NAMESPACE }} 2>/dev/null || echo "Pod no encontrado"
 
-      # Paso 8: Obtener logs del servicio
+      # Paso 9: Obtener logs del servicio
       - name: Get service logs
         if: always()
         run: |
