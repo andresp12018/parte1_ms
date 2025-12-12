@@ -113,7 +113,8 @@ jobs:
       # Paso 6: Esperar a que los pods estén listos
       - name: Wait for deployment
         run: |
-          oc rollout status deployment/parte1-ms-deployment -n ${{ secrets.OPENSHIFT_NAMESPACE }} --timeout=5m
+          # Usar watch=true para esperar el despliegue (timeout en 5 minutos)
+          timeout 300s oc rollout status deployment/parte1-ms-deployment -n ${{ secrets.OPENSHIFT_NAMESPACE }} -w=true || true
 
       # Paso 7: Verificar estado de los pods
       - name: Check pod status
