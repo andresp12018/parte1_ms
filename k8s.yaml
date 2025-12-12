@@ -102,6 +102,9 @@ spec:
       labels:
         app: parte1-ms
     spec:
+      # AGREGADO: Secret para hacer pull desde DockerHub
+      imagePullSecrets:
+        - name: dockerhub-secret
       containers:
         - name: parte1-ms
           # Reemplace con su imagen (build & push antes de aplicar)
