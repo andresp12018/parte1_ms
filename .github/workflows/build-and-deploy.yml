@@ -1,0 +1,128 @@
+# Workflow de GitHub Actions para construir, pushear a DockerHub y desplegar en OpenShift
+# Triggered: al hacer push en main o pull request
+
+name: Build & Deploy to DockerHub and OpenShift
+
+# Eventos que activan el workflow
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Variables de entorno globales
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: parte1-ms
+
+jobs:
+  # Job 1: Construir imagen y subirla a DockerHub
+  build-and-push:
+    runs-on: ubuntu-latest
+    # Permisos necesarios para escribir en GHCR (si usamos) o DockerHub
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # Paso 1: Clonar el repositorio
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Paso 2: Configurar BuildKit (herramienta optimizada de Docker)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Paso 3: Autenticarse en DockerHub
+      # Usa secrets DOCKER_USER y DOCKER_PASSWORD
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Paso 4: Extraer información de Git (rama, SHA del commit)
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USER }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Paso 5: Construir y pushear la imagen a DockerHub
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Job 2: Desplegar en OpenShift (solo si el push es en main)
+  deploy-openshift:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    # Solo ejecutar en push a main, no en PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      # Paso 1: Clonar el repositorio
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Paso 2: Instalar CLI de OpenShift (oc)
+      - name: Install OpenShift CLI
+        run: |
+          # Descargar e instalar el cliente oc
+          curl -L https://github.com/openshift/origin/releases/download/v3.11.0/openshift-origin-client-tools-v3.11.0-0cbc58b-linux-64bit.tar.gz -o oc.tar.gz
+          tar xzf oc.tar.gz
+          sudo mv openshift-origin-client-tools-v3.11.0-0cbc58b-linux-64bit/oc /usr/local/bin/
+          oc version
+
+      # Paso 3: Autenticarse en OpenShift
+      # Usa secrets OPENSHIFT_SERVER, OPENSHIFT_TOKEN, OPENSHIFT_NAMESPACE
+      - name: Login to OpenShift
+        run: |
+          oc login ${{ secrets.OPENSHIFT_SERVER }} \
+            --token=${{ secrets.OPENSHIFT_TOKEN }} \
+            --insecure-skip-tls-verify=true
+
+      # Paso 4: Cambiar al namespace correcto
+      - name: Switch to project namespace
+        run: |
+          oc project ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+      # Paso 5: Aplicar el manifiesto k8s.yaml en OpenShift
+      - name: Apply Kubernetes manifest
+        run: |
+          # Reemplazar la variable IMAGE_NAME en k8s.yaml antes de aplicar
+          sed -i "s|parte1-ms:latest|docker.io/${{ secrets.DOCKER_USER }}/parte1-ms:latest|g" k8s.yaml
+          
+          # Aplicar el manifiesto
+          oc apply -f k8s.yaml
+
+      # Paso 6: Esperar a que los pods estén listos
+      - name: Wait for deployment
+        run: |
+          oc rollout status deployment/parte1-ms-deployment -n ${{ secrets.OPENSHIFT_NAMESPACE }} --timeout=5m
+
+      # Paso 7: Verificar estado de los pods
+      - name: Check pod status
+        run: |
+          oc get pods -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+          oc describe pod -l app=parte1-ms -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+      # Paso 8: Obtener logs del servicio
+      - name: Get service logs
+        if: always()
+        run: |
+          oc logs -l app=parte1-ms -n ${{ secrets.OPENSHIFT_NAMESPACE }} --tail=50
