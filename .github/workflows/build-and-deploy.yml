@@ -124,25 +124,41 @@ jobs:
         run: |
           oc project ${{ secrets.OPENSHIFT_NAMESPACE }}
 
+      # Paso 5b: Crear o actualizar secret de DockerHub para pull
+      - name: Create DockerHub pull secret
+        run: |
+          oc delete secret dockerhub-secret -n ${{ secrets.OPENSHIFT_NAMESPACE }} --ignore-not-found=true
+          oc create secret docker-registry dockerhub-secret \
+            --docker-server=docker.io \
+            --docker-username=${{ secrets.DOCKER_USER }} \
+            --docker-password=${{ secrets.DOCKER_PASSWORD }} \
+            --docker-email=dummy@example.com \
+            -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+          echo "✓ Secret de DockerHub creado"
+
       # Paso 6: Aplicar el manifiesto k8s.yaml en OpenShift
       - name: Apply Kubernetes manifest
         run: |
-          # Reemplazar la variable IMAGE_NAME en k8s.yaml antes de aplicar
-          sed -i "s|parte1-ms:latest|docker.io/${{ secrets.DOCKER_USER }}/parte1-ms:latest|g" k8s.yaml
+          # Reemplazar el placeholder DOCKER_IMAGE_URL con la imagen real
+          IMAGE_URL="docker.io/${{ secrets.DOCKER_USER }}/parte1-ms:latest"
+          sed -i "s|DOCKER_IMAGE_URL|${IMAGE_URL}|g" k8s.yaml
           
-          echo "=== Contenido de k8s.yaml después de reemplazo ==="
-          cat k8s.yaml | grep "image:"
+          echo "=== Imagen configurada en k8s.yaml ==="
+          cat k8s.yaml | grep -A 1 "image:"
           
           # Aplicar el manifiesto
+          echo ""
+          echo "Aplicando manifiesto en OpenShift..."
           oc apply -f k8s.yaml
           
-          echo "Manifiesto aplicado exitosamente"
+          echo "✓ Manifiesto aplicado"
           
           # Dar tiempo a que se creen los pods
           sleep 5
           
-          echo "=== Pods después de aplicar manifiesto ==="
-          oc get pods -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+          echo ""
+          echo "=== Estado de pods tras aplicar manifiesto ==="
+          oc get pods -n ${{ secrets.OPENSHIFT_NAMESPACE }} -o wide
 
       # Paso 8: Verificar estado de los pods (diagnóstico exhaustivo)
       - name: Check pod status

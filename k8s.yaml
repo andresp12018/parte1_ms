@@ -94,7 +94,6 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    # Usar Recreate en lugar de RollingUpdate para evitar problemas de versiones simultáneas
     type: Recreate
   selector:
     matchLabels:
@@ -104,43 +103,36 @@ spec:
       labels:
         app: parte1-ms
     spec:
-      # AGREGADO: Secret para hacer pull desde DockerHub
       imagePullSecrets:
         - name: dockerhub-secret
       containers:
         - name: parte1-ms
-          # Reemplace con su imagen (build & push antes de aplicar)
-          image: parte1-ms:latest
+          image: DOCKER_IMAGE_URL
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
-          # Variables de entorno para la conexión a Postgres
           env:
             - name: POSTGRES_HOST
               value: postgres-service
             - name: POSTGRES_PORT
               value: "5432"
-          # Cargar todas las claves del Secret como variables de entorno
           envFrom:
             - secretRef:
                 name: postgres-secret
-          # Health checks - simples y tolerantes
           readinessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 20
-            periodSeconds: 5
+            initialDelaySeconds: 45
+            periodSeconds: 10
             failureThreshold: 5
-            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 40
-            periodSeconds: 15
+            initialDelaySeconds: 90
+            periodSeconds: 30
             failureThreshold: 3
-            timeoutSeconds: 3
 
 ---
 apiVersion: v1
