@@ -8,7 +8,7 @@ metadata:
   name: postgres-secret
 type: Opaque
 stringData:
-  # Valores por defecto; en un entorno real cambie esto a valores seguros
+  # Valores por defecto; en un entorno real cambie esto a valores seguros -- estos son usados en el workflow de GitHub Actions
   POSTGRES_USER: myuser
   POSTGRES_PASSWORD: mypassword
   POSTGRES_DB: mydb
